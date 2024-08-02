@@ -1,0 +1,196 @@
+import pygame # Import the pygame module
+from pygame.locals import * # Import all the local variables from pygame
+from OpenGL.GL import * # Import all OpenGL functions
+from OpenGL.GLUT import * # Import all GLUT functions
+import random # Import the random module
+import math # Import the math module
+# Initialize Pygame
+pygame.init() # Initialize all imported Pygame modules
+pygame.mixer.init()  # Initialize the mixer module for sound
+# Set up display
+display = (800, 800) # Set display size to 800x800 pixels
+pygame.display.set_mode(display, DOUBLEBUF | OPENGL) # Set the display mode to OpenGL with double buffering
+glOrtho(0, 20, 0, 20, -1, 1) # Set up an orthographic projection matrix
+# Load textures
+def load_texture(image): # Function to load a texture from an image file
+texture_surface = pygame.image.load(image) # Load image file as a surface
+texture_data = pygame.image.tostring(texture_surface, "RGBA", 1) # Convert the surface to a string of RGBA bytes
+width = texture_surface.get_width() # Get the width of the surface
+height = texture_surface.get_height() # Get the height of the surface
+glEnable(GL_TEXTURE_2D) # Enable 2D texturing
+texture = glGenTextures(1) # Generate a new texture id
+glBindTexture(GL_TEXTURE_2D, texture) # Bind the texture id to a texture target
+glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, 
+
+GL_UNSIGNED_BYTE, texture_data) # Specify a 2D texture image
+glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR) # Set the minifying function to linear interpolation
+glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR) # Set the magnification function to linear interpolation
+return texture # Return the texture id
+# Load textures for the game
+plane_texture = load_texture("ap.png") # Load texture for plane
+building_texture = load_texture("build.png") # Load texture for building
+crash_texture = load_texture("crash.png") # Load texture for crash effect
+map_texture = load_texture("images.jpg")  # Load texture for world map
+# Load and play music
+pygame.mixer.music.load("background_music.mp3")  # Load background music file
+pygame.mixer.music.play(-1)  # Play the music indefinitely
+# Plane and obstacle data
+num_planes = 2 # Number of planes to start with
+planes = [] # List to store planes
+obstacles = [ # List to store obstacle details
+{'x': 5, 'y': 5, 'width': 2, 'height': 3},
+{'x': 12, 'y': 12, 'width': 3, 'height': 2},
+{'x': 7, 'y': 15, 'width': 3, 'height': 4}  # Added third building
+]
+blasts = [] # List to store blast effects
+circle_centers = (10, 10)  # Center of all concentric circles
+circle_radii = [6, 5, 4, 3, 2]  # Radii of the concentric circles
+def init_planes(): # Function to initialize planes
+for _ in range(num_planes): # Loop through the number of planes
+add_plane() # Add a plane
+def add_plane(): # Function to add a new plane
+for i in range(len(circle_radii)): # Loop through each path defined by circle radii
+# Check if there are less than 3 planes in this path
+if sum(1 for plane in planes if plane['path'] == i) < 3:
+plane = { # Create a new plane dictionary
+'angle': random.uniform(0, 2 * math.pi), # Set a random initial angle
+'angular_velocity': random.uniform(0.001, 0.005), # Set a random angular velocity
+
+
+'path': i # Set the path index
+}
+planes.append(plane) # Add the plane to the list of planes
+break
+              def remove_plane(): # Function to remove a plane
+if planes: # Check if there are any planes
+planes.pop() # Remove the last plane in the list
+def draw_map(): # Function to draw the world map
+glBindTexture(GL_TEXTURE_2D, map_texture) # Bind the world map texture
+glBegin(GL_QUADS) # Begin drawing a quadrilateral
+glTexCoord2f(0, 0) # Set texture coordinate
+glVertex2f(0, 0) # Set vertex coordinate
+glTexCoord2f(1, 0) # Set texture coordinate
+glVertex2f(20, 0) # Set vertex coordinate
+glTexCoord2f(1, 1) # Set texture coordinate
+glVertex2f(20, 20) # Set vertex coordinate
+glTexCoord2f(0, 1) # Set texture coordinate
+glVertex2f(0, 20) # Set vertex coordinate
+glEnd() # End drawing the quadrilateral
+def draw_concentric_circles(): # Function to draw concentric circles
+glColor3f(1, 1, 1) # Set color to white
+for radius in circle_radii: # Loop through each circle radius
+glBegin(GL_LINE_LOOP) # Begin drawing a line loop
+for i in range(100): # Loop to create circle
+angle = 2 * math.pi * i / 100 # Calculate angle for each point on the circle
+x = circle_centers[0] + radius * math.cos(angle) # Calculate x coordinate
+y = circle_centers[1] + radius * math.sin(angle) # Calculate y coordinate
+glVertex2f(x, y) # Set vertex coordinate
+glEnd() # End drawing the line loop
+def draw_planes(): # Function to draw planes
+glBindTexture(GL_TEXTURE_2D, plane_texture) # Bind the plane texture
+for plane in planes: # Loop through each plane
+radius = circle_radii[plane['path']] # Get the radius of the plane's path
+x = circle_centers[0] + radius * math.cos(plane['angle']) # Calculate x coordinate
+y = circle_centers[1] + radius * math.sin(plane['angle']) # Calculate y coordinate
+
+glBegin(GL_QUADS) # Begin drawing a quadrilateral
+glTexCoord2f(0, 0) # Set texture coordinate
+glVertex2f(x - 0.5, y - 0.5) # Set vertex coordinate
+glTexCoord2f(1, 0) # Set texture coordinate
+glVertex2f(x + 0.5, y - 0.5) # Set vertex coordinate
+glTexCoord2f(1, 1) # Set texture coordinate
+glVertex2f(x + 0.5, y + 0.5) # Set vertex coordinate
+glTexCoord2f(0, 1) # Set texture coordinate
+glVertex2f(x - 0.5, y + 0.5) # Set vertex coordinate
+glEnd() # End drawing the quadrilateral
+def draw_obstacles(): # Function to draw obstacles
+glBindTexture(GL_TEXTURE_2D, building_texture) # Bind the building texture
+for obs in obstacles: # Loop through each obstacle
+glBegin(GL_QUADS) # Begin drawing a quadrilateral
+glTexCoord2f(0, 0) # Set texture coordinate
+glVertex2f(obs['x'], obs['y']) # Set vertex coordinate
+glTexCoord2f(1, 0) # Set texture coordinate
+glVertex2f(obs['x'] + obs['width'], obs['y']) # Set vertex coordinate
+glTexCoord2f(1, 1) # Set texture coordinate
+glVertex2f(obs['x'] + obs['width'], obs['y'] + obs['height']) # Set vertex coordinate
+glTexCoord2f(0, 1) # Set texture coordinate
+glVertex2f(obs['x'], obs['y'] + obs['height']) # Set vertex coordinate
+glEnd() # End drawing the quadrilateral
+def draw_blasts(): # Function to draw blast effects
+glBindTexture(GL_TEXTURE_2D, crash_texture) # Bind the crash texture
+for blast in blasts: # Loop through each blast
+glBegin(GL_QUADS) # Begin drawing a quadrilateral
+glTexCoord2f(0, 0) # Set texture coordinate
+glVertex2f(blast['x'] - 0.5, blast['y'] - 0.5) # Set vertex coordinate
+glTexCoord2f(1, 0) # Set texture coordinate
+glVertex2f(blast['x'] + 0.5, blast['y'] - 0.5) # Set vertex coordinate
+glTexCoord2f(1, 1) # Set texture coordinate
+glVertex2f(blast['x'] + 0.5, blast['y'] + 0.5) # Set vertex coordinate
+glTexCoord2f(0, 1) # Set texture coordinate
+glVertex2f(blast['x'] - 0.5, blast['y'] + 0.5) # Set vertex coordinate
+
+glEnd() # End drawing the quadrilateral
+def update_planes(): # Function to update plane positions and check for collisions
+global planes # Use the global planes list
+updated_planes = [] # List to store planes that don't collide with obstacles
+for plane in planes: # Loop through each plane
+plane['angle'] += plane['angular_velocity'] # Update the angle of the plane
+radius = circle_radii[plane['path']] # Get the radius of the plane's path
+x = circle_centers[0] + radius * math.cos(plane['angle']) # Calculate x coordinate
+y = circle_centers[1] + radius * math.sin(plane['angle']) # Calculate y coordinate
+collision = False # Initialize collision flag
+# Check for collisions with obstacles
+for obs in obstacles: # Loop through each obstacle
+if (obs['x'] <= x <= obs['x'] + obs['width']) and (obs['y'] <= y <= obs['y'] + obs['height']): # Check if plane is within obstacle bounds
+blasts.append({'x': x, 'y': y}) # Add blast effect when plane hits an obstacle
+collision = True # Set collision flag to true
+break # Exit the loop
+if not collision: # If no collision occurred
+updated_planes.append(plane) # Add plane to the updated planes list
+# Check for collisions with other planes
+new_planes = [] # List to store planes that don't collide with other planes
+while updated_planes: # While there are updated planes
+plane = updated_planes.pop(0) # Get the first plane
+collision = False # Initialize collision flag
+for other_plane in updated_planes: # Loop through each other plane
+if plane['path'] == other_plane['path']:  # Only check collisions within the same path
+radius = circle_radii[plane['path']] # Get the radius of the plane's path
+x1 = circle_centers[0] + radius * math.cos(plane['angle']) # Calculate x coordinate of plane
+y1 = circle_centers[1] + radius * math.sin(plane['angle']) # Calculate y coordinate of plane
+radius2 = circle_radii[other_plane['path']] # Get the radius of the other plane's path
+x2 = circle_centers[0] + radius2 * math.cos(other_plane['angle']) # Calculate x coordinate of other plane
+y2 = circle_centers[1] + radius2 * math.sin(other_plane['angle']) # Calculate y coordinate of other plane
+distance = math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2) # Calculate the distance between the 
+
+planes
+if distance < 0.5: # If the distance is less than 0.5 units
+blasts.append({'x': (x1 + x2) / 2, 'y': (y1 + y2) / 2}) # Add blast effect when planes collide
+updated_planes.remove(other_plane) # Remove the other plane from the updated planes list
+collision = True # Set collision flag to true
+break # Exit the loop
+if not collision: # If no collision occurred
+new_planes.append(plane) # Add plane to the new planes list
+planes = new_planes # Update the global planes list with the new planes list
+def main(): # Main function
+init_planes() # Initialize planes
+while True: # Main loop
+for event in pygame.event.get(): # Get all events
+if event.type == pygame.QUIT: # If the event is quitting the game
+pygame.quit() # Quit Pygame
+return # Exit the main loop
+elif event.type == pygame.KEYDOWN: # If a key is pressed
+if event.key == pygame.K_a: # If the 'a' key is pressed
+add_plane() # Add a plane
+elif event.key == pygame.K_r: # If the 'r' key is pressed
+remove_plane() # Remove a plane
+glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT) # Clear the screen and depth buffer
+draw_map()       # Draw the world map
+draw_concentric_circles()  # Draw concentric circles
+draw_planes() # Draw planes
+draw_obstacles() # Draw obstacles
+draw_blasts() # Draw blast effects
+update_planes() # Update plane positions
+pygame.display.flip() # Update the display
+pygame.time.wait(16) # Wait for 16 milliseconds
+if _name_ == "_main_": # If this script is run as the main module
+main() # Call the main function
